@@ -1,182 +1,144 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Cloud, CloudRain, Thermometer, Wind, Droplets, Snowflake, Eye, Sunrise, Sunset, TrendingUp, TrendingDown, Waves } from 'lucide-react';
-import { WeatherSVG } from '../utils/WeatherSVG';
+import {
+    Sun, Cloud, CloudRain, Thermometer, Wind, Droplets, Snowflake, MapPin,  Users
+} from 'lucide-react';
 
 const API_KEY = import.meta.env.VITE_API_KEY as string;
-const CITY = import.meta.env.VITE_CITY as string;
 
 interface WeatherData {
     name: string;
     sys: {
         country: string;
-        sunrise: number;
-        sunset: number;
     };
     main: {
         temp: number;
         feels_like: number;
         humidity: number;
-        pressure: number;
-        temp_min: number;
-        temp_max: number;
-        sea_level: number;
     };
     weather: Array<{
         main: string;
         description: string;
-        icon: string;
     }>;
     wind: {
         speed: number;
     };
-    visibility: number;
+}
+
+interface CountryData {
+    name: {
+        common: string;
+    };
+    capital: string[];
+    population: number;
+    flags: {
+        svg: string;
+    };
 }
 
 const WeatherComponent: React.FC = () => {
     const [weather, setWeather] = useState<WeatherData | null>(null);
-    const [loading, setLoading] = useState<boolean>(true);
+    const [country, setCountry] = useState<CountryData | null>(null);
+    const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState<string>('');
 
     useEffect(() => {
-        const fetchWeather = async () => {
-            try {
-                const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(CITY)}&appid=${API_KEY}&units=metric`;
-                const response = await fetch(url);
+        if (searchQuery) {
+            fetchCountryAndWeather(searchQuery);
+        }
+    }, [searchQuery]);
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data: WeatherData = await response.json();
-                setWeather(data);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'An error occurred');
-            } finally {
-                setLoading(false);
-            }
-        };
+    const fetchCountryAndWeather = async (countryName: string) => {
+        setLoading(true);
+        setError(null);
+        try {
+            // Fetch country data
+            const countryResponse = await fetch(`https://restcountries.com/v3.1/name/${countryName}`);
+            if (!countryResponse.ok) throw new Error('Country not found');
+            const countryData = await countryResponse.json();
+            setCountry(countryData[0]);
 
-        fetchWeather();
-    }, []);
-
-    const getWeatherIcon = (weatherMain: string) => {
-        switch (weatherMain) {
-            case 'Clear':
-                return <Sun className="w-12 h-12 text-yellow-400" />;
-            case 'Clouds':
-                return <Cloud className="w-12 h-12 text-gray-400" />;
-            case 'Rain':
-                return <CloudRain className="w-12 h-12 text-blue-400" />;
-            case 'Snow':
-                return <Snowflake className="w-12 h-12 text-white" />;
-            default:
-                return <Thermometer className="w-12 h-12 text-red-400" />;
+            // Fetch weather data for the capital
+            const capital = countryData[0].capital[0];
+            const weatherResponse = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${capital}&appid=${API_KEY}&units=metric`);
+            if (!weatherResponse.ok) throw new Error('Weather data not found');
+            const weatherData = await weatherResponse.json();
+            setWeather(weatherData);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+        } finally {
+            setLoading(false);
         }
     };
 
-    const formatTime = (timestamp: number) => {
-        return new Date(timestamp * 1000).toLocaleTimeString('en-IN', { 
-            hour: 'numeric', 
-            minute: 'numeric', 
-            hour12: true 
-        });
+    const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (searchQuery.trim()) {
+            fetchCountryAndWeather(searchQuery);
+        }
+    };
+
+    const getWeatherIcon = (weatherMain: string) => {
+        switch (weatherMain) {
+            case 'Clear': return <Sun className="w-16 h-16 text-yellow-400" />;
+            case 'Clouds': return <Cloud className="w-16 h-16 text-gray-400" />;
+            case 'Rain': return <CloudRain className="w-16 h-16 text-blue-400" />;
+            case 'Snow': return <Snowflake className="w-16 h-16 text-blue-200" />;
+            default: return <Thermometer className="w-16 h-16 text-red-400" />;
+        }
     };
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-400 to-purple-500">
-      <div className="max-w-5xl w-full p-6 bg-white bg-opacity-90 rounded-2xl shadow-xl">
-          <div className="flex flex-col md:flex-row items-center justify-between">
-              <div className="w-full md:w-1/2 mb-4 md:mb-0">
-                  <WeatherSVG />
-              </div>
-              <div className="w-full md:w-1/2 text-black">
-                  <h1 className="text-3xl font-bold mb-4 text-center">{CITY} Weather</h1>
-                        {loading && <p className="text-center text-lg animate-pulse">Loading weather data...</p>}
-                        {error && <p className="text-center text-red-600 bg-white bg-opacity-75 p-4 rounded-lg">{error}</p>}
-                        {weather && (
-                            <div className="text-center">
-                                <div className="flex justify-center mb-3">
-                                    {getWeatherIcon(weather.weather[0].main)}
-                                </div>
-                                <h2 className="text-xl font-semibold mb-1">{weather.name}, {weather.sys.country}</h2>
-                                <p className="text-4xl font-bold mb-3">{Math.round(weather.main.temp)}°C</p>
-                                <p className="text-lg italic mb-3">{weather.weather[0].description}</p>
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+            <div className="max-w-4xl w-full bg-white rounded-2xl shadow-xl p-8">
+                <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">Global Weather Explorer</h1>
 
-                                {/* Weather Metrics Grid */}
-                                <div className="grid grid-cols-2 gap-2 md:grid-cols-3 text-sm">
-                                    {/* Current Temperature */}
-                                    <div className="bg-white bg-opacity-30 p-2 rounded-lg flex flex-col items-center justify-center" style={{ height: '80px' }}>
-                                        <Thermometer className="w-5 h-5 mb-1" />
-                                        <p className="font-semibold">Temp</p>
-                                        <p>{Math.round(weather.main.temp)}°C</p>
-                                    </div>
-
-                                    {/* Humidity */}
-                                    <div className="bg-white bg-opacity-30 p-2 rounded-lg flex flex-col items-center justify-center" style={{ height: '80px' }}>
-                                        <Droplets className="w-5 h-5 mb-1" />
-                                        <p className="font-semibold">Humidity</p>
-                                        <p>{weather.main.humidity}%</p>
-                                    </div>
-
-                                    {/* Wind Speed */}
-                                    <div className="bg-white bg-opacity-30 p-2 rounded-lg flex flex-col items-center justify-center" style={{ height: '80px' }}>
-                                        <Wind className="w-5 h-5 mb-1" />
-                                        <p className="font-semibold">Wind</p>
-                                        <p>{weather.wind.speed} m/s</p>
-                                    </div>
-
-                                    {/* Pressure */}
-                                    <div className="bg-white bg-opacity-30 p-2 rounded-lg flex flex-col items-center justify-center" style={{ height: '80px' }}>
-                                        <Thermometer className="w-5 h-5 mb-1" />
-                                        <p className="font-semibold">Pressure</p>
-                                        <p>{weather.main.pressure} hPa</p> 
-                                    </div>
-
-                                    {/* Visibility */}
-                                    <div className="bg-white bg-opacity-30 p-2 rounded-lg flex flex-col items-center justify-center" style={{ height: '80px' }}>
-                                        <Eye className="w-5 h-5 mb-1" />
-                                        <p className="font-semibold">Visibility</p>
-                                        <p>{(weather.visibility / 1000).toFixed(1)} km</p> 
-                                    </div>
-
-                                    {/* Sea Level */}
-                                    <div className="bg-white bg-opacity-30 p-2 rounded-lg flex flex-col items-center justify-center" style={{ height: '80px' }}>
-                                        <Waves className="w-5 h-5 mb-1" />
-                                        <p className="font-semibold">Sea Level</p>
-                                        <p>{weather.main.sea_level} hPa</p>
-                                    </div>
-
-                                    {/* Temp Min */}
-                                    <div className="bg-white bg-opacity-30 p-2 rounded-lg flex flex-col items-center justify-center" style={{ height: '80px' }}>
-                                        <TrendingDown className="w-5 h-5 mb-1" />
-                                        <p className="font-semibold">Low</p>
-                                        <p>{Math.round(weather.main.temp_min)}°C</p>
-                                    </div>
-
-                                    {/* Temp Max */}
-                                    <div className="bg-white bg-opacity-30 p-2 rounded-lg flex flex-col items-center justify-center" style={{ height: '80px' }}>
-                                        <TrendingUp className="w-5 h-5 mb-1" />
-                                        <p className="font-semibold">High</p>
-                                        <p>{Math.round(weather.main.temp_max)}°C</p>
-                                    </div>
-
-                                    {/* Sunrise */}
-                                    <div className="bg-white bg-opacity-30 p-2 rounded-lg flex flex-col items-center justify-center" style={{ height: '80px' }}>
-                                        <Sunrise className="w-5 h-5 mb-1" />
-                                        <p className="font-semibold">Sunrise</p>
-                                        <p>{formatTime(weather.sys.sunrise)}</p>
-                                    </div>
-
-                                    {/* Sunset */}
-                                    <div className="bg-white bg-opacity-30 p-2 rounded-lg flex flex-col items-center justify-center" style={{ height: '80px' }}>
-                                        <Sunset className="w-5 h-5 mb-1" />
-                                        <p className="font-semibold">Sunset</p>
-                                        <p>{formatTime(weather.sys.sunset)}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                <form onSubmit={handleSearch} className="mb-8">
+                    <div className="flex">
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Enter a country name"
+                            className="flex-grow p-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        />
+                        <button type="submit" className="bg-blue-500 text-white px-6 py-3 rounded-r-lg hover:bg-blue-600 transition duration-300">
+                            Search
+                        </button>
                     </div>
-                </div>
+                </form>
+
+                {loading && <p className="text-center text-gray-600 animate-pulse">Exploring the globe for you...</p>}
+                {error && <p className="text-center text-red-500 bg-red-100 p-3 rounded-lg">{error}</p>}
+
+                {country && weather && (
+                    <div className="grid md:grid-cols-2 gap-8">
+                        <div className="country-info bg-gray-50 p-6 rounded-xl">
+                            <div className="flex items-center mb-4">
+                                <img src={country.flags.svg} alt={`${country.name.common} flag`} className="w-12 h-8 mr-3" />
+                                <h2 className="text-2xl font-semibold text-gray-800">{country.name.common}</h2>
+                            </div>
+                            <div className="space-y-2 text-gray-600">
+                                <p className="flex items-center"><MapPin className="w-5 h-5 mr-2" /> Capital: {country.capital[0]}</p>
+                                <p className="flex items-center"><Users className="w-5 h-5 mr-2" /> Population: {country.population.toLocaleString()}</p>
+                            </div>
+                        </div>
+
+                        <div className="weather-info bg-gray-50 p-6 rounded-xl">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-xl font-semibold text-gray-800">Weather in {weather.name}</h3>
+                                {getWeatherIcon(weather.weather[0].main)}
+                            </div>
+                            <div className="space-y-2 text-gray-600">
+                                <p className="text-4xl font-bold text-gray-800 mb-2">{Math.round(weather.main.temp)}°C</p>
+                                <p className="italic">{weather.weather[0].description}</p>
+                                <p className="flex items-center"><Thermometer className="w-5 h-5 mr-2" /> Feels like: {Math.round(weather.main.feels_like)}°C</p>
+                                <p className="flex items-center"><Droplets className="w-5 h-5 mr-2" /> Humidity: {weather.main.humidity}%</p>
+                                <p className="flex items-center"><Wind className="w-5 h-5 mr-2" /> Wind: {weather.wind.speed} m/s</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

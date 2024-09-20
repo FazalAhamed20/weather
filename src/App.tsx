@@ -1,5 +1,6 @@
-import WeatherApp from "./component/WeatherApp"
+
 import './index.css';
+import WeatherPage from "./pages/WeatherPage";
 
 
 function App() {
@@ -7,7 +8,7 @@ function App() {
 
   return (
     <>
-    <WeatherApp/>
+    <WeatherPage/>
       
     </>
   )
